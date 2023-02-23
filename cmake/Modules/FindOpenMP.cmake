@@ -241,7 +241,7 @@ function(_OPENMP_GET_FLAGS LANG FLAG_MODE OPENMP_FLAG_VAR OPENMP_LIB_NAMES_VAR)
     # thus will cause infinite recursion if this is not taken care of. Therefore,
     # we record an internal flag to detect repeatedly inclusion.
 
-    if(NOT "${CMAKE_${LANG}_COMPILER_ID}" STREQUAL "GNU" AND BLAS STREQUAL "MKL" AND NOT IN_FIND_OMP)
+    if(NOT "${CMAKE_${LANG}_COMPILER_ID}" STREQUAL "GNU" AND NOT IN_FIND_OMP)
       set(IN_FIND_OMP ON CACHE BOOL "" FORCE)
       find_package(MKL QUIET)
       unset(IN_FIND_OMP CACHE)
@@ -250,8 +250,10 @@ function(_OPENMP_GET_FLAGS LANG FLAG_MODE OPENMP_FLAG_VAR OPENMP_LIB_NAMES_VAR)
         # OpenMP will complain about being initialized twice (OMP: Error #15),
         # can may cause incorrect behavior.
         set(OpenMP_libomp_LIBRARY "${MKL_OPENMP_LIBRARY}" CACHE STRING "libomp location for OpenMP")
-        if("-fopenmp=libiomp5" IN_LIST OpenMP_${LANG}_FLAG_CANDIDATES)
-          set(OPENMP_FLAG "-fopenmp=libiomp5")
+        if(OpenMP_libomp_LIBRARY MATCHES "iomp5")
+          if("-fopenmp=libiomp5" IN_LIST OpenMP_${LANG}_FLAG_CANDIDATES)
+            set(OPENMP_FLAGS_TEST "-fopenmp=libiomp5")
+          endif()
         endif()
       else()
         find_library(OpenMP_libomp_LIBRARY
