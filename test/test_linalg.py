@@ -12,6 +12,7 @@ from math import inf, nan, isnan
 import random
 from random import randrange
 from itertools import product
+import operator
 from functools import reduce, partial, wraps
 
 from torch.testing._internal.common_utils import \
