@@ -330,7 +330,7 @@ CI_SERIAL_LIST = [
     'test_module_hooks',  # OOM
     'functorch/test_memory_efficient_fusion',  # OOM
 ] + (
-    ['test_ops'] if 'slow-gradcheck' in os.getenv("BUILD_ENVIRONMENT", "") else []
+    ['test_ops', 'test_nestedtensor'] if 'slow-gradcheck' in os.getenv("BUILD_ENVIRONMENT", "") else []
 )
 
 # A subset of our TEST list that validates PyTorch's ops, modules, and autograd function as expected
@@ -1256,6 +1256,8 @@ def get_selected_tests(options):
         # Run distributed tests with multiple backends across all shards, one per backend
         selected_tests.extend(DISTRIBUTED_TESTS_WITH_MULTIPLE_BACKENDS.keys())
         selected_tests.reverse()
+
+    selected_tests = [parse_test_module(test) for test in selected_tests]
 
     # sharding
     if options.shard:
