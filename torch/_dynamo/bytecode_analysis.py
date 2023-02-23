@@ -21,6 +21,9 @@ HASFREE = set(dis.hasfree)
 
 stack_effect = dis.stack_effect
 
+def is_uncond(instruction):
+    return instruction.opname in ("JUMP_FORWARD", "JUMP_BACKWARD", "JUMP_BACKWARD_NO_INTERRUPT", "JUMP_ABSOLUTE")
+
 
 def remove_dead_code(instructions):
     """Dead code elimination"""
@@ -28,18 +31,23 @@ def remove_dead_code(instructions):
     live_code = set()
 
     def find_live_code(start):
-        for i in range(start, len(instructions)):
+        i = start
+        while i < len(instructions):
             if i in live_code:
                 return
             live_code.add(i)
             inst = instructions[i]
+            i += 1
             if inst.opcode in JUMP_OPCODES:
-                find_live_code(indexof[id(inst.target)])
+                if is_uncond(inst):
+                    i = indexof[id(inst.target)]
+                else:
+                    find_live_code(indexof[id(inst.target)])
             if inst.opcode in TERMINAL_OPCODES:
                 return
 
     find_live_code(0)
-    return [inst for i, inst in enumerate(instructions) if i in live_code]
+    return [instructions[i] for i in live_code]
 
 
 def remove_pointless_jumps(instructions):
@@ -47,7 +55,7 @@ def remove_pointless_jumps(instructions):
     pointless_jumps = {
         id(a)
         for a, b in zip(instructions, instructions[1:])
-        if a.opname == "JUMP_ABSOLUTE" and a.target is b
+        if is_uncond(a) and a.target is b
     }
     return [inst for inst in instructions if id(inst) not in pointless_jumps]
 
@@ -91,8 +99,6 @@ class ReadsWrites:
     writes: set
     visited: set
 
-def is_uncond(instruction):
-    return instruction.opname in ("JUMP_FORWARD", "JUMP_BACKWARD", "JUMP_BACKWARD_NO_INTERRUPT", "JUMP_ABSOLUTE")
 
 def livevars_analysis(instructions, instruction):
     indexof = {id(inst): i for i, inst in enumerate(instructions)}
