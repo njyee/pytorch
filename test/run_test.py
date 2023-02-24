@@ -329,9 +329,7 @@ CI_SERIAL_LIST = [
     'test_native_mha',  # OOM
     'test_module_hooks',  # OOM
     'functorch/test_memory_efficient_fusion',  # OOM
-] + (
-    ['test_ops', 'test_nestedtensor'] if 'slow-gradcheck' in os.getenv("BUILD_ENVIRONMENT", "") else []
-)
+]
 
 # A subset of our TEST list that validates PyTorch's ops, modules, and autograd function as expected
 CORE_TEST_LIST = [
@@ -1154,6 +1152,7 @@ def must_serial(file: Union[str, ShardedTest]) -> bool:
         "distributed" in os.getenv("TEST_CONFIG", "") or
         "dynamo" in os.getenv("TEST_CONFIG", "") or
         "distributed" in file or
+        'slow-gradcheck' in os.getenv("BUILD_ENVIRONMENT", "") or
         file in CUSTOM_HANDLERS or
         file in RUN_PARALLEL_BLOCKLIST or
         file in CI_SERIAL_LIST or
