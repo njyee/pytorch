@@ -311,22 +311,14 @@ CI_SERIAL_LIST = [
     'test_dispatch',
     'test_spectral_ops',    # Cause CUDA illegal memory access https://github.com/pytorch/pytorch/issues/88916
     'nn/test_pooling',
-    'nn/test_convolution',  # Doesn't respect set_per_process_memory_fraction, results in OOM for other tests in slow gradcheck
+    'nn/test_convolution',  # test_conv_transposed_large_cuda allocates tensor of 4GB
+    'functorch/test_memory_efficient_fusion',  # OOM
     'distributions/test_distributions',
-    'test_autograd',  # slow gradcheck runs a test that checks the cuda memory allocator
-    'test_prims',  # slow gradcheck runs a test that checks the cuda memory allocator
     'test_modules',  # failed test due to mismatched elements
     'functorch/test_vmap',  # OOM
     'test_fx',  # gets SIGKILL
     'test_dataloader',  # frequently hangs for ROCm
     'test_serialization',   # test_serialization_2gb_file allocates a tensor of 2GB, and could cause OOM
-    'test_utils',  # OOM
-    'test_sort_and_select',  # OOM
-    'test_backward_compatible_arguments',  # OOM
-    'test_module_init',  # OOM
-    'test_autocast',  # OOM
-    'test_native_mha',  # OOM
-    'test_module_hooks',  # OOM
 ]
 
 # A subset of our TEST list that validates PyTorch's ops, modules, and autograd function as expected
@@ -822,17 +814,6 @@ def run_test_ops(test_module, test_directory, options):
     ]
     default_unittest_args.extend(rerun_options)
 
-    if 'slow-gradcheck' in os.getenv("BUILD_ENVIRONMENT", ""):
-        extra_unittest_args = default_unittest_args.copy()
-        # there are a lot of tests that take up a lot of space in slowgrad check, so don't bother parallelizing
-        # it's also on periodic so we don't care about TTS as much
-        return run_test(
-            test_module,
-            test_directory,
-            copy.deepcopy(options),
-            extra_unittest_args=extra_unittest_args,
-        )
-
     return_codes = []
     os.environ["NUM_PARALLEL_PROCS"] = str(NUM_PROCS)
     pool = get_context("spawn").Pool(NUM_PROCS)
@@ -1039,7 +1020,7 @@ def parse_args():
         "--keep-going",
         action="store_true",
         help="Runs the full test suite despite one of the tests failing",
-        default=strtobool(os.environ.get("CONTINUE_THROUGH_ERROR", "False")),
+        default=strtobool("True"),
     )
     parser.add_argument(
         "additional_unittest_args",
@@ -1345,7 +1326,7 @@ def main():
         return False
 
     try:
-        os.environ['PARALLEL_TESTING'] = '1'
+        os.environ['NUM_PARALLEL_PROCS'] = str(NUM_PROCS)
         for test in selected_tests_parallel:
             options_clone = copy.deepcopy(options)
             if test in USE_PYTEST_LIST:
@@ -1353,7 +1334,7 @@ def main():
             pool.apply_async(run_test_module, args=(test, test_directory, options_clone), callback=success_callback)
         pool.close()
         pool.join()
-        del os.environ['PARALLEL_TESTING']
+        del os.environ['NUM_PARALLEL_PROCS']
 
         if not options.continue_through_error and len(failure_messages) != 0:
             raise RuntimeError(
