@@ -194,7 +194,7 @@ USE_PYTEST_LIST = [
     "distributed/elastic/events/lib_test",
     "distributed/elastic/agent/server/test/api_test",
     "test_deploy",
-    "distributed/test_c10d_error_logger.py"
+    "distributed/test_c10d_error_logger"
 ]
 
 WINDOWS_BLOCKLIST = [
@@ -1319,6 +1319,8 @@ def main():
         selected_tests = get_reordered_tests(selected_tests)
         # downloading test cases configuration to local environment
         get_test_case_configs(dirpath=test_directory)
+
+    selected_tests = [x for x in selected_tests if x in USE_PYTEST_LIST]
 
     failure_messages = []
 
