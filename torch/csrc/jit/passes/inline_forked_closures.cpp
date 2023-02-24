@@ -58,6 +58,56 @@ void inlineForkedClosure(Node* fork_closure, NodeKind genKind) {
   runCleanupPasses(fork_graph);
 }
 
+void inlineAwaitableThenClosure(Node* then_closure) {
+  Node* function_context_node = then_closure->inputs()[0]->node();
+
+  if (function_context_node->inputs().size() != 2 ||
+      function_context_node->inputs().at(0)->node()->kind() != prim::Closure ||
+      function_context_node->inputs().at(1)->node()->kind() !=
+          prim::TupleConstruct) {
+    throw ErrorReport(then_closure->sourceRange()) << "Cannot fork this value";
+  }
+
+  Node* function = function_context_node->inputs().at(0)->node();
+  Node* context = function_context_node->inputs().at(1)->node();
+  auto then_graph = function->g(attr::Subgraph)->copy();
+  auto g = then_closure->owningGraph();
+  Node* then_node = g->create(prim::awaitable_then, 0)
+                        ->insertAfter(then_closure)
+                        ->setSourceRange(then_closure->sourceRange());
+  Node* then_input_node = g->create(prim::awaitable_then_input, 1)
+                              ->insertBefore(then_node)
+                              ->setSourceRange(then_closure->sourceRange());
+  TORCH_INTERNAL_ASSERT(then_closure->inputs().size() == 2);
+  auto aw = then_closure->inputs().at(1);
+  TORCH_INTERNAL_ASSERT(aw->type()->kind() == AwaitType::Kind);
+  auto fake_aw_then_input = then_input_node->output();
+  then_input_node->addInput(aw);
+
+  then_node->addInput(aw);
+  then_node->addInput(fake_aw_then_input);
+
+  auto then_graph_context = then_graph->inputs().at(0);
+  {
+    if (then_graph_context->uses().size() == 1) {
+      auto fork_graph_unpack = then_graph_context->uses().at(0).user;
+
+      for (size_t i = 0; i < context->inputs().size(); ++i) {
+        auto cont_input = context->inputs().at(i);
+        then_node->addInput(cont_input);
+        auto inp = then_graph->addInput()->copyMetadata(cont_input);
+        fork_graph_unpack->outputs().at(i)->replaceAllUsesWith(inp);
+      }
+      fork_graph_unpack->destroy();
+    }
+  }
+
+  then_graph->eraseInput(0);
+  then_closure->destroy();
+  then_node->g_(attr::Subgraph, then_graph);
+  runCleanupPasses(then_graph);
+}
+
 void inlineForkedClosures(Block* block) {
   for (auto it = block->nodes().begin(); it != block->nodes().end();) {
     Node* n = *it;
@@ -68,6 +118,9 @@ void inlineForkedClosures(Block* block) {
       } break;
       case prim::awaitableClosure: {
         inlineForkedClosure(n, prim::awaitable);
+      } break;
+      case prim::awaitableThenClosure: {
+        inlineAwaitableThenClosure(n);
       } break;
       default: {
         for (Block* b : n->blocks()) {
