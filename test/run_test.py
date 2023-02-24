@@ -605,25 +605,11 @@ def test_distributed(test_module, test_directory, options):
     if options.verbose and not mpi_available:
         print_to_stderr("MPI not available -- MPI backend tests will be skipped")
 
-    if options.shard:
-        which_shard, num_shards = options.shard
-    else:
-        which_shard = num_shards = 1
-    file_name = test_module.name if isinstance(test_module, ShardedTest) else test_module
-    # Round-robin all backends to different shards
-    backend_to_shard = {backend: i % num_shards + 1
-                        for i, backend in enumerate(DISTRIBUTED_TESTS_WITH_MULTIPLE_BACKENDS[file_name])}
-    print_to_stderr(f"Map different backends to different shards for {file_name}: {backend_to_shard}")
-
     config = DISTRIBUTED_TESTS_CONFIG
     for backend, env_vars in config.items():
         if sys.platform == "win32" and backend != "gloo":
             continue
         if backend == "mpi" and not mpi_available:
-            continue
-        # Default to the first shard if seeing an unrecognized backend
-        if which_shard != backend_to_shard.get(backend, 1):
-            print_to_stderr(f"Shard {which_shard}: {backend} should be run in {backend_to_shard.get(backend, 1)}")
             continue
         for with_init_file in {True, False}:
             if sys.platform == "win32" and not with_init_file:
@@ -633,8 +619,8 @@ def test_distributed(test_module, test_directory, options):
                 init_str = "with {} init_method"
                 with_init = init_str.format("file" if with_init_file else "env")
                 print_to_stderr(
-                    "Running distributed tests for the {} backend {} in shard {} of {}".format(
-                        backend, with_init, which_shard, num_shards
+                    "Running distributed tests for the {} backend {}".format(
+                        backend, with_init
                     )
                 )
             old_environ = dict(os.environ)
@@ -1171,9 +1157,7 @@ def get_selected_tests(options):
 
     if options.distributed_tests:
         selected_tests = list(
-            filter(lambda test_name: (test_name in DISTRIBUTED_TESTS and
-                                      test_name not in DISTRIBUTED_TESTS_WITH_MULTIPLE_BACKENDS),
-                   selected_tests)
+            filter(lambda test_name: test_name in DISTRIBUTED_TESTS, selected_tests)
         )
 
     # Filter to only run core tests when --core option is specified
@@ -1250,11 +1234,6 @@ def get_selected_tests(options):
         selected_tests = exclude_tests(TESTS_NOT_USING_GRADCHECK, selected_tests,
                                        "Running in slow gradcheck mode, skipping tests "
                                        "that don't use gradcheck.", exact_match=True)
-
-    if options.distributed_tests:
-        # Run distributed tests with multiple backends across all shards, one per backend
-        selected_tests.extend(DISTRIBUTED_TESTS_WITH_MULTIPLE_BACKENDS.keys())
-        selected_tests.reverse()
 
     selected_tests = [parse_test_module(test) for test in selected_tests]
 
