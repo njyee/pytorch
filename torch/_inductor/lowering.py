@@ -1163,6 +1163,8 @@ def philox_rand_like(x, seed, offset):
     device = x.get_device()
     dtype = x.get_dtype()
     size = x.get_size()
+    if type(offset) is TensorBox:  # dynamic shapes
+        offset = V.graph.graph_inputs_non_tensor[offset.get_name()]
     random_pos = ir.FixedLayout(
         device,
         dtype,

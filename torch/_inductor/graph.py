@@ -4,7 +4,7 @@ import os
 import re
 import sys
 import time
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 import sympy
 
@@ -125,6 +125,7 @@ class GraphLowering(torch.fx.Interpreter):
         self.sizevars = SizeVarAllocator(shape_env)
         self.graph_inputs: Dict[str, TensorBox] = {}
         self.graph_inputs_original: Dict[str, InputBuffer] = {}
+        self.graph_inputs_non_tensor: Dict[str, Any] = {}
         self.graph_outputs: Optional[List[ir.IRNode]] = None
         self.device_types: Set[str] = set()
         self.buffers: List[ir.ComputedBuffer] = []
@@ -277,7 +278,10 @@ class GraphLowering(torch.fx.Interpreter):
         return alt_name
 
     def placeholder(self, target: str, args, kwargs):
-        example: torch.Tensor = super().placeholder(target, args, kwargs)
+        example = super().placeholder(target, args, kwargs)
+        if not torch.is_tensor(example):
+            self.graph_inputs_non_tensor[target] = example
+            example = torch.tensor(example)
         # todo(chilli): We can remove the last check once we turn buffers into
         # static shape tensors. That's a hack to workaround Inductor believing
         # the buffer should be static but us passing in a fake tensor with
