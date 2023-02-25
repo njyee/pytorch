@@ -373,6 +373,10 @@ class TORCH_API TensorBase {
     impl_->_set_neg(negative);
   }
 
+  inline void _add_composite_view(SymIntArrayRef sizes) const {
+    impl_->_add_composite_view(SymDimVector(sizes.begin(), sizes.end()));
+  }
+
   /// Returns a `Tensor`'s layout.
   Layout layout() const {
     return impl_->layout();
